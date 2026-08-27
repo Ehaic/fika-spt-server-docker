@@ -55,9 +55,9 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
         SPT_COMMIT=$(git rev-parse --short HEAD) && \
         SPT_BUILD_TIME=$(date +%Y%m%d) && \
         echo "Building SPT ${SPT_VERSION_NUM} (commit: ${SPT_COMMIT}, date: ${SPT_BUILD_TIME})" && \
-        echo "Project file: ./SPTarkov.Server/SPTarkov.Server.csproj" && \
-        ls -la ./SPTarkov.Server/ && \
-        dotnet publish ./SPTarkov.Server/SPTarkov.Server.csproj \
+        echo "Project file: ./SPTushonka.Server/SPTushonka.Server.csproj" && \
+        ls -la ./SPTushonka.Server/ && \
+        dotnet publish ./SPTushonka.Server/SPTushonka.Server.csproj \
             -c "${SPT_BUILD_CONFIG}" \
             -r linux-arm64 \
             --self-contained false \
@@ -69,7 +69,7 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
             -p:IsPublish=true \
             -p:LangVersion=preview && \
         echo "Build completed, checking output..." && \
-        find SPTarkov.Server/bin -type d -name "publish" && \
+        find SPTushonka.Server/bin -type d -name "publish" && \
         cd ..; \
     fi
 
@@ -80,7 +80,7 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
     else \
         echo "=== ARM64: Moving compiled files ===" && \
         mkdir -p /opt/build && \
-        PUBLISH_DIR=$(find spt/SPTarkov.Server/bin -type d -name "publish" | head -1) && \
+        PUBLISH_DIR=$(find spt/SPTushonka.Server/bin -type d -name "publish" | head -1) && \
         echo "Found publish directory: ${PUBLISH_DIR}" && \
         rm -f ${PUBLISH_DIR}/*.pdb && \
         mv ${PUBLISH_DIR}/* /opt/build/; \
