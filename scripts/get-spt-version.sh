@@ -1,12 +1,12 @@
 #!/bin/bash
 # Script to automatically fetch the latest SPT version information
-# This extracts the download URL from sp-tarkov/build release notes
+# This extracts the download URL from sp-tushonka/build release notes
 
 set -e
 
 # Function to get the latest SPT version from release download URL
 get_latest_spt_version() {
-    local github_api="https://api.github.com/repos/sp-tarkov/build/releases/latest"
+    local github_api="https://api.github.com/repos/sp-tushonka/build/releases/latest"
 
     echo "Fetching latest SPT release from GitHub..." >&2
 
@@ -49,7 +49,7 @@ get_latest_spt_version() {
 get_version_from_release() {
     local version_tag="$1"
 
-    local github_api="https://api.github.com/repos/sp-tarkov/build/releases/tags/${version_tag}"
+    local github_api="https://api.github.com/repos/sp-tushonka/build/releases/tags/${version_tag}"
 
     echo "Fetching release info for version ${version_tag}..." >&2
 
