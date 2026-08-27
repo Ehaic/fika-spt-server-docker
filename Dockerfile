@@ -18,7 +18,7 @@ ENV SPT_VERSION=$SPT_VERSION
 ENV FIKA_VERSION=$FIKA_VERSION
 
 WORKDIR /opt/build
-RUN curl -sL "https://spt-releases.modd.in/SPT-${SPT_VERSION}.7z" -o spt.7z
+RUN curl -sL "https://mirror.sp-tushonka.com/releases/SPT-${SPT_VERSION}.7z" -o spt.7z
 RUN 7zz x spt.7z
 
 COPY entrypoint.sh /usr/bin/entrypoint
