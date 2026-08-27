@@ -16,10 +16,13 @@ spt_backup_dir=$backup_dir/spt/$(date +%Y%m%dT%H%M)
 force_spt_version=${FORCE_SPT_VERSION:=}
 forced_spt_version_archive=SPT-${force_spt_version}.7z
 
-nodejs_spt_data_dir=$mounted_dir/SPT_Data
-spt_nodejs_core_config=$nodejs_spt_data_dir/Server/configs/core.json
+# SPT 4.1+ directory structure:
+# - SPT_Runtime/ contains executables and SPT_Data (configs)
+# - SPT/ contains user data (profiles, mods)
+spt_runtime_dir=$mounted_dir/SPT_Runtime
 spt_dir=$mounted_dir/SPT
-spt_data_dir=$spt_dir/SPT_Data
+spt_data_dir=$spt_runtime_dir/SPT_Data
+spt_nodejs_core_config=$spt_data_dir/configs/core.json
 enable_spt_listen_on_all_networks=${LISTEN_ALL_NETWORKS:-false}
 
 
@@ -140,7 +143,7 @@ validate() {
 
     if [[ -d $spt_data_dir ]]; then
         # Grab version from binary using exiftool
-        existing_spt_version=$(exiftool -s -s -s -ProductVersion $spt_dir/SPT.Server.dll | cut -d '-' -f 1)
+        existing_spt_version=$(exiftool -s -s -s -ProductVersion $spt_runtime_dir/SPT.Server.dll | cut -d '-' -f 1)
         if [[ -n ${force_spt_version} ]]; then
             # Force download SPT archive and install, do not backup or validate
             install_spt
@@ -359,7 +362,7 @@ install_requested_mods() {
 validate
 
 # If no server binary in this directory, copy our built files in here and run it once
-if [[ ! -f "$spt_dir/$spt_binary" ]]; then
+if [[ ! -f "$spt_runtime_dir/$spt_binary" ]]; then
     echo "Server files not found, initializing first boot..."
     install_spt
 else
@@ -416,4 +419,4 @@ set_permissions
 
 set_timezone
 
-su - $(id -nu $uid) -c "cd $spt_dir && ./$spt_binary"
+su - $(id -nu $uid) -c "cd $spt_runtime_dir && ./$spt_binary"
