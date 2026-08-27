@@ -38,7 +38,8 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
 # Step 2: Extract (AMD64) or pull LFS files (ARM64)
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
         echo "=== AMD64: Extracting archive ===" && \
-        7zr x spt.7z; \
+        mkdir -p /opt/build && \
+        7zr x spt.7z -o/opt/build; \
     else \
         echo "=== ARM64: Pulling LFS files ===" && \
         cd spt && \
@@ -74,9 +75,8 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
 
 # Step 4: Move files to /opt/build
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
-        echo "=== AMD64: Moving extracted files ===" && \
-        mkdir -p /opt/build && \
-        mv SPT/* /opt/build/; \
+        echo "=== AMD64: Files already extracted to /opt/build ===" && \
+        ls -la /opt/build/; \
     else \
         echo "=== ARM64: Moving compiled files ===" && \
         mkdir -p /opt/build && \
@@ -89,7 +89,7 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
 # Step 5: Cleanup
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
         echo "=== AMD64: Cleanup ===" && \
-        rm -rf SPT spt.7z; \
+        rm -f /tmp/spt.7z; \
     else \
         echo "=== ARM64: Cleanup ===" && \
         rm -rf spt; \
