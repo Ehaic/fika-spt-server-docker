@@ -64,7 +64,7 @@ jobs:
         id: spt-pr
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT }}
           branch: update-spt-${{ steps.versions.outputs.spt_version }}
           delete-branch: true
           commit-message: "Update to SPT ${{ steps.versions.outputs.latest_spt }} / Fika ${{ steps.versions.outputs.latest_fika }}"
@@ -92,7 +92,7 @@ jobs:
         id: fika-pr
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT }}
           branch: auto-update-fika-${{ steps.versions.outputs.latest_fika }}
           delete-branch: true
           commit-message: "Auto-update Fika to ${{ steps.versions.outputs.latest_fika }}"
