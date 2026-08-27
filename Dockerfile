@@ -5,7 +5,7 @@ RUN apt update && apt install -y --no-install-recommends \
     aria2 \
     ca-certificates \
     unzip \
-    7zip \
+    p7zip-full \
     vim \
     cron \
     exiftool \
@@ -19,7 +19,7 @@ ENV FIKA_VERSION=$FIKA_VERSION
 
 WORKDIR /opt/build
 RUN curl -sL "https://mirror.sp-tushonka.com/releases/SPT-${SPT_VERSION}.7z" -o spt.7z
-RUN 7zz x spt.7z
+RUN 7z x spt.7z
 
 COPY entrypoint.sh /usr/bin/entrypoint
 COPY scripts/backup.sh /usr/bin/backup

@@ -287,7 +287,7 @@ install_spt() {
             curl -sL "https://mirror.sp-tushonka.com/releases/SPT-${force_spt_version}.7z" -o ${forced_spt_version_archive}
             # Remove the server files, since databases tend to be different between versions
             rm -rf $spt_data_dir
-            7zz x ${forced_spt_version_archive} -aoa
+            7z x ${forced_spt_version_archive} -aoa
         else
             echo "Version already downloaded and presumed installed. Skipping SPT installation."
             echo "If you want to force reinstall this server version ${force_spt_version}, remove the SPT-*.7z archive in your mounted server files directory."
