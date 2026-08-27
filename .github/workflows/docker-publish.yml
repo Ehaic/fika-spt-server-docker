@@ -11,6 +11,7 @@ on:
     tags: [ '*.*.*' ]
   pull_request:
     branches: [ "master" ]
+  workflow_dispatch:  # Allow manual triggering
 
 env:
   # Use docker.io for Docker Hub if empty
@@ -22,7 +23,7 @@ env:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
       packages: write
