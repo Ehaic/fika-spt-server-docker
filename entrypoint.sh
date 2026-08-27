@@ -64,7 +64,8 @@ enable_profile_backup=${ENABLE_PROFILE_BACKUP:-true}
 
 num_headless_profiles=${NUM_HEADLESS_PROFILES:+"$NUM_HEADLESS_PROFILES"}
 
-install_other_mods=${INSTALL_OTHER_MODS:-false}
+mods_csv="${MODS:-}"
+auto_update_mods="${AUTO_UPDATE_MODS:-false}"
 
 enforce_spt_4_structure() {
     # detect SPT 4 files in serverfiles root, if exists move everything into SPT/ subdirectory
@@ -347,9 +348,8 @@ spt_listen_on_all_networks() {
 ##############
 
 install_requested_mods() {
-    # Run the download & install mods script
-    echo "Downloading and installing other mods"
-    /usr/bin/download_unzip_install_mods $spt_dir
+    echo "Installing mods via sp-mod.com API"
+    MODS="$mods_csv" AUTO_UPDATE_MODS="$auto_update_mods" SPT_VERSION="$spt_version" FIKA_MODE="$fika_mode" /usr/bin/install_mods $spt_dir
 }
 
 ##############
@@ -394,7 +394,7 @@ esac
 
 set_num_headless_profiles
 
-if [[ "$install_other_mods" == "true" ]]; then
+if [[ -n "$mods_csv" ]]; then
     install_requested_mods
 fi
 
