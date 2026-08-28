@@ -16,10 +16,13 @@ spt_backup_dir=$backup_dir/spt/$(date +%Y%m%dT%H%M)
 force_spt_version=${FORCE_SPT_VERSION:=}
 forced_spt_version_archive=SPT-${force_spt_version}.7z
 
-nodejs_spt_data_dir=$mounted_dir/SPT_Data
-spt_nodejs_core_config=$nodejs_spt_data_dir/Server/configs/core.json
+# SPT 4.1+ directory structure:
+# - SPT_Runtime/ contains executables and SPT_Data (configs)
+# - SPT/ contains user data (profiles, mods)
+spt_runtime_dir=$mounted_dir/SPT_Runtime
 spt_dir=$mounted_dir/SPT
-spt_data_dir=$spt_dir/SPT_Data
+spt_data_dir=$spt_runtime_dir/SPT_Data
+spt_nodejs_core_config=$spt_data_dir/configs/core.json
 enable_spt_listen_on_all_networks=${LISTEN_ALL_NETWORKS:-false}
 
 
@@ -33,6 +36,10 @@ fika_release_url="https://github.com/project-fika/Fika-Server-CSharp/releases/do
 fika_remote_SHA=$(curl -s "https://api.github.com/repos/project-fika/Fika-Server-CSharp/git/refs/tags/v$fika_version" | grep -oP '"sha":\s*"\K[^"]+')
 
 auto_update_spt=${AUTO_UPDATE_SPT:-false}
+
+# Mod installation via sp-mod.com API
+mods_csv="${MODS:-}"
+auto_update_mods="${AUTO_UPDATE_MODS:-false}"
 
 # Backwards compatibility for deprecated variables
 install_fika=${INSTALL_FIKA:-}
@@ -110,7 +117,7 @@ validate() {
     fi
 
     # Must mount /opt/server directory, otherwise the serverfiles are in container and there's no persistence
-    if [[ ! $(mount | grep $mounted_dir) ]]; then
+    if [[ ! $(mount | grep $mounted_dir || true) ]]; then
         echo "Please mount a volume/directory from the host to $mounted_dir. This server container must store files on the host."
         echo "You can do this with docker run's -v flag e.g. '-v /path/on/host:/opt/server'"
         echo "or with docker-compose's 'volumes' directive"
@@ -121,8 +128,10 @@ validate() {
     # If we have sptVersion in the core config, this means this existing server <= SPT v3
     # If existing SPT major version is less than 4, existing files are not compatible
     echo "Validating SPT version"
-    if [[ -d $nodejs_spt_data_dir && -f $spt_nodejs_core_config ]]; then
+    if [[ -d $spt_data_dir && -f $spt_nodejs_core_config ]]; then
+        echo "DEBUG: core.json exists, running jq" >&2
         existing_spt_version=$(jq -r '.sptVersion' $spt_nodejs_core_config)
+        echo "DEBUG: existing_spt_version=$existing_spt_version" >&2
         if [[ $existing_spt_version != "null" && $existing_spt_version != "$spt_version" ]]; then
             echo "  ==================="
             echo "  === FATAL ERROR ==="
@@ -140,8 +149,10 @@ validate() {
     enforce_spt_4_structure
 
     if [[ -d $spt_data_dir ]]; then
+        echo "DEBUG: spt_data_dir exists, running exiftool" >&2
         # Grab version from binary using exiftool
-        existing_spt_version=$(exiftool -s -s -s -ProductVersion $spt_dir/SPT.Server.dll | cut -d '-' -f 1)
+        existing_spt_version=$(exiftool -s -s -s -ProductVersion $spt_runtime_dir/SPT.Server.dll | cut -d '-' -f 1)
+        echo "DEBUG: existing_spt_version from exiftool=$existing_spt_version" >&2
         if [[ -n ${force_spt_version} ]]; then
             # Force download SPT archive and install, do not backup or validate
             install_spt
@@ -149,18 +160,28 @@ validate() {
             try_update_spt $existing_spt_version
         fi
 
+        echo "DEBUG: SPT version check complete, moving to Fika validation" >&2
+        echo "DEBUG: fika_mode=$fika_mode" >&2
+
         # Validate fika version based on FIKA_MODE
         # Since they (fika) don't use proper versioning, but they do include the release SHA in the DLL, we can use that to check if we need to update
         # TODO: Add proper version check to validate if there is a new version available.
             # This is essentially done by running a curl against fika github for all releases and checking for a later version than expected $fika_version
         case "$fika_mode" in
             custom)
+                echo "DEBUG: fika_mode=custom, skipping" >&2
                 echo "Skipping Fika validation (FIKA_MODE=custom)"
                 ;;
             install|auto-update)
+                echo "DEBUG: fika_mode=$fika_mode, checking Fika DLL" >&2
                 if [[ -f $fika_mod_dir/FikaServer.dll ]]; then
-                    fika_local_SHA=$(exiftool -s -s -s -ProductVersion $fika_mod_dir/FikaServer.dll | grep -oP '[0-9.]+\+\K.*')
+                    echo "DEBUG: FikaServer.dll found, running exiftool" >&2
+                    fika_local_SHA=$(exiftool -s -s -s -ProductVersion $fika_mod_dir/FikaServer.dll | grep -oP '[0-9.]+\+\K.*' || true)
+                    echo "DEBUG: fika_local_SHA=$fika_local_SHA" >&2
+                else
+                    echo "DEBUG: FikaServer.dll not found at $fika_mod_dir/FikaServer.dll" >&2
                 fi
+                echo "DEBUG: fika_remote_SHA=$fika_remote_SHA" >&2
                 if [[ "$fika_local_SHA" != "$fika_remote_SHA" ]]; then
                     echo "Fika SHA mismatch: found:$fika_local_SHA != expected:$fika_remote_SHA"
                     if [[ "$fika_mode" == "auto-update" ]]; then
@@ -237,7 +258,12 @@ install_fika_mod() {
     # Assumes fika_server.zip artifact contains user/mods/fika-server
     curl -sL $fika_release_url -O
     unzip -q $fika_artifact -d $mounted_dir/temp_fika/
-    mv $mounted_dir/temp_fika/SPT/user/mods/fika-server $spt_dir/user/mods/
+    # SPT 4.1+ extracts to SPT_Runtime/, older versions to SPT/
+    if [ -d "$mounted_dir/temp_fika/SPT_Runtime/user/mods/fika-server" ]; then
+        mv $mounted_dir/temp_fika/SPT_Runtime/user/mods/fika-server $spt_dir/user/mods/
+    else
+        mv $mounted_dir/temp_fika/SPT/user/mods/fika-server $spt_dir/user/mods/
+    fi
     rm -r $mounted_dir/temp_fika
     rm $fika_artifact
     echo "Installation complete"
@@ -245,7 +271,9 @@ install_fika_mod() {
 
 backup_fika() {
     mkdir -p $fika_backup_dir
-    cp -r $fika_mod_dir $fika_backup_dir
+    if [ -d "$fika_mod_dir" ]; then
+        cp -r $fika_mod_dir $fika_backup_dir
+    fi
 }
 
 try_update_fika() {
@@ -357,9 +385,10 @@ install_requested_mods() {
 ##############
 
 validate
+echo "DEBUG: validate() completed, checking server binary" >&2
 
 # If no server binary in this directory, copy our built files in here and run it once
-if [[ ! -f "$spt_dir/$spt_binary" ]]; then
+if [[ ! -f "$spt_runtime_dir/$spt_binary" ]]; then
     echo "Server files not found, initializing first boot..."
     install_spt
 else
@@ -416,4 +445,4 @@ set_permissions
 
 set_timezone
 
-su - $(id -nu $uid) -c "cd $spt_dir && ./$spt_binary"
+su - $(id -nu $uid) -c "cd $spt_runtime_dir && ./$spt_binary"

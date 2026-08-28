@@ -118,35 +118,65 @@ get_best_version() {
     fi
     
     # Filter by SPT version compatibility
+    # Supports: exact match, ~major.minor (patch-agnostic), >=version, ~major.minor <major.minor.patch
     local compatible_versions
     if [ -n "$SPT_VERSION" ]; then
         compatible_versions=$(echo "$versions" | jq -c --arg spt "$SPT_VERSION" '
-            [.[] | select(
-                (.spt_version_constraint == null) or
-                (.spt_version_constraint == "") or
-                (.spt_version_constraint | gsub("^\\s+|\\s+$"; "") == $spt) or
-                (.spt_version_constraint | test("^\\s*" + $spt + "\\s*$"))
-            )]
+            def parse_version: split(".") | map(tonumber);
+            def version_gte(a; b):
+                (a[0] > b[0]) or
+                (a[0] == b[0] and a[1] > b[1]) or
+                (a[0] == b[0] and a[1] == b[1] and a[2] >= b[2]);
+            def version_lt(a; b):
+                (a[0] < b[0]) or
+                (a[0] == b[0] and a[1] < b[1]) or
+                (a[0] == b[0] and a[1] == b[1] and a[2] < b[2]);
+            def matches_constraint($spt):
+                .spt_version_constraint as $c |
+                ($c | gsub("^\\s+|\\s+$"; "")) as $trimmed |
+                if $c == null or $c == "" then true
+                elif $trimmed == $spt then true
+                elif ($trimmed | test("^~[0-9]+\\.[0-9]+$")) then
+                    $spt | startswith($trimmed | ltrimstr("~"))
+                elif ($trimmed | test("^>=[0-9]")) then
+                    ($spt | parse_version) as $current |
+                    ($trimmed | ltrimstr(">=") | parse_version) as $min |
+                    version_gte($current; $min)
+                elif ($trimmed | test("^~[0-9]+\\.[0-9]+\\s+<[0-9]")) then
+                    ($trimmed | capture("~(?<min>[0-9]+\\.[0-9]+)\\s+<(?<max>[0-9]+\\.[0-9]+\\.[0-9]+)")) as $m |
+                    ($spt | parse_version) as $current |
+                    ($m.min | split(".") | map(tonumber)) as $min_ver |
+                    ($m.max | split(".") | map(tonumber)) as $max_ver |
+                    ($current[0] == $min_ver[0] and $current[1] == $min_ver[1]) and
+                    version_lt($current; $max_ver)
+                else false
+                end;
+            [.[] | select(matches_constraint($spt))]
         ')
     else
         compatible_versions="$versions"
     fi
-    
+
     # If Fika is active, prefer Fika-compatible versions
     if [ "$FIKA_MODE" != "disabled" ]; then
         local fika_versions
         fika_versions=$(echo "$compatible_versions" | jq -c '
             [.[] | select(.fika_compatibility == "compatible" or .fika_compatibility == true)]
         ')
-        
+
         if [ "$(echo "$fika_versions" | jq 'length')" -gt 0 ]; then
             compatible_versions="$fika_versions"
         else
             log_warn "No Fika-compatible versions found for $mod_name, using best available"
         fi
     fi
-    
-    # Get the latest (first) compatible version
+
+    # Sort by semver descending and pick the latest
+    compatible_versions=$(echo "$compatible_versions" | jq -c '
+        sort_by(.version | split(".") | map(tonumber)) | reverse
+    ')
+
+    # Get the latest (first after sort) compatible version
     local best_version
     best_version=$(echo "$compatible_versions" | jq -c '.[0]')
     
@@ -410,9 +440,9 @@ main() {
         fi
         
         if process_mod "$slug"; then
-            ((success_count++))
+            success_count=$((success_count + 1))
         else
-            ((fail_count++))
+            fail_count=$((fail_count + 1))
         fi
     done
     
