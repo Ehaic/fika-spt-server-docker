@@ -71,7 +71,8 @@ enable_profile_backup=${ENABLE_PROFILE_BACKUP:-true}
 
 num_headless_profiles=${NUM_HEADLESS_PROFILES:+"$NUM_HEADLESS_PROFILES"}
 
-install_other_mods=${INSTALL_OTHER_MODS:-false}
+mods_csv="${MODS:-}"
+auto_update_mods="${AUTO_UPDATE_MODS:-false}"
 
 enforce_spt_4_structure() {
     # detect SPT 4 files in serverfiles root, if exists move everything into SPT/ subdirectory
