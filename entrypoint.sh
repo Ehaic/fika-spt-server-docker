@@ -117,7 +117,7 @@ validate() {
     fi
 
     # Must mount /opt/server directory, otherwise the serverfiles are in container and there's no persistence
-    if [[ ! $(mount | grep $mounted_dir) ]]; then
+    if [[ ! $(mount | grep $mounted_dir || true) ]]; then
         echo "Please mount a volume/directory from the host to $mounted_dir. This server container must store files on the host."
         echo "You can do this with docker run's -v flag e.g. '-v /path/on/host:/opt/server'"
         echo "or with docker-compose's 'volumes' directive"
@@ -129,7 +129,9 @@ validate() {
     # If existing SPT major version is less than 4, existing files are not compatible
     echo "Validating SPT version"
     if [[ -d $spt_data_dir && -f $spt_nodejs_core_config ]]; then
+        echo "DEBUG: core.json exists, running jq" >&2
         existing_spt_version=$(jq -r '.sptVersion' $spt_nodejs_core_config)
+        echo "DEBUG: existing_spt_version=$existing_spt_version" >&2
         if [[ $existing_spt_version != "null" && $existing_spt_version != "$spt_version" ]]; then
             echo "  ==================="
             echo "  === FATAL ERROR ==="
@@ -147,8 +149,10 @@ validate() {
     enforce_spt_4_structure
 
     if [[ -d $spt_data_dir ]]; then
+        echo "DEBUG: spt_data_dir exists, running exiftool" >&2
         # Grab version from binary using exiftool
         existing_spt_version=$(exiftool -s -s -s -ProductVersion $spt_runtime_dir/SPT.Server.dll | cut -d '-' -f 1)
+        echo "DEBUG: existing_spt_version from exiftool=$existing_spt_version" >&2
         if [[ -n ${force_spt_version} ]]; then
             # Force download SPT archive and install, do not backup or validate
             install_spt
@@ -156,18 +160,28 @@ validate() {
             try_update_spt $existing_spt_version
         fi
 
+        echo "DEBUG: SPT version check complete, moving to Fika validation" >&2
+        echo "DEBUG: fika_mode=$fika_mode" >&2
+
         # Validate fika version based on FIKA_MODE
         # Since they (fika) don't use proper versioning, but they do include the release SHA in the DLL, we can use that to check if we need to update
         # TODO: Add proper version check to validate if there is a new version available.
             # This is essentially done by running a curl against fika github for all releases and checking for a later version than expected $fika_version
         case "$fika_mode" in
             custom)
+                echo "DEBUG: fika_mode=custom, skipping" >&2
                 echo "Skipping Fika validation (FIKA_MODE=custom)"
                 ;;
             install|auto-update)
+                echo "DEBUG: fika_mode=$fika_mode, checking Fika DLL" >&2
                 if [[ -f $fika_mod_dir/FikaServer.dll ]]; then
-                    fika_local_SHA=$(exiftool -s -s -s -ProductVersion $fika_mod_dir/FikaServer.dll | grep -oP '[0-9.]+\+\K.*')
+                    echo "DEBUG: FikaServer.dll found, running exiftool" >&2
+                    fika_local_SHA=$(exiftool -s -s -s -ProductVersion $fika_mod_dir/FikaServer.dll | grep -oP '[0-9.]+\+\K.*' || true)
+                    echo "DEBUG: fika_local_SHA=$fika_local_SHA" >&2
+                else
+                    echo "DEBUG: FikaServer.dll not found at $fika_mod_dir/FikaServer.dll" >&2
                 fi
+                echo "DEBUG: fika_remote_SHA=$fika_remote_SHA" >&2
                 if [[ "$fika_local_SHA" != "$fika_remote_SHA" ]]; then
                     echo "Fika SHA mismatch: found:$fika_local_SHA != expected:$fika_remote_SHA"
                     if [[ "$fika_mode" == "auto-update" ]]; then
@@ -371,6 +385,7 @@ install_requested_mods() {
 ##############
 
 validate
+echo "DEBUG: validate() completed, checking server binary" >&2
 
 # If no server binary in this directory, copy our built files in here and run it once
 if [[ ! -f "$spt_runtime_dir/$spt_binary" ]]; then
