@@ -37,6 +37,10 @@ fika_remote_SHA=$(curl -s "https://api.github.com/repos/project-fika/Fika-Server
 
 auto_update_spt=${AUTO_UPDATE_SPT:-false}
 
+# Mod installation via sp-mod.com API
+mods_csv="${MODS:-}"
+auto_update_mods="${AUTO_UPDATE_MODS:-false}"
+
 # Backwards compatibility for deprecated variables
 install_fika=${INSTALL_FIKA:-}
 auto_update_fika=${AUTO_UPDATE_FIKA:-}
@@ -239,7 +243,12 @@ install_fika_mod() {
     # Assumes fika_server.zip artifact contains user/mods/fika-server
     curl -sL $fika_release_url -O
     unzip -q $fika_artifact -d $mounted_dir/temp_fika/
-    mv $mounted_dir/temp_fika/SPT/user/mods/fika-server $spt_dir/user/mods/
+    # SPT 4.1+ extracts to SPT_Runtime/, older versions to SPT/
+    if [ -d "$mounted_dir/temp_fika/SPT_Runtime/user/mods/fika-server" ]; then
+        mv $mounted_dir/temp_fika/SPT_Runtime/user/mods/fika-server $spt_dir/user/mods/
+    else
+        mv $mounted_dir/temp_fika/SPT/user/mods/fika-server $spt_dir/user/mods/
+    fi
     rm -r $mounted_dir/temp_fika
     rm $fika_artifact
     echo "Installation complete"
@@ -247,7 +256,9 @@ install_fika_mod() {
 
 backup_fika() {
     mkdir -p $fika_backup_dir
-    cp -r $fika_mod_dir $fika_backup_dir
+    if [ -d "$fika_mod_dir" ]; then
+        cp -r $fika_mod_dir $fika_backup_dir
+    fi
 }
 
 try_update_fika() {
@@ -350,9 +361,8 @@ spt_listen_on_all_networks() {
 ##############
 
 install_requested_mods() {
-    # Run the download & install mods script
-    echo "Downloading and installing other mods"
-    /usr/bin/download_unzip_install_mods $spt_dir
+    echo "Installing mods via sp-mod.com API"
+    MODS="$mods_csv" AUTO_UPDATE_MODS="$auto_update_mods" SPT_VERSION="$spt_version" FIKA_MODE="$fika_mode" /usr/bin/install_mods $spt_dir
 }
 
 ##############
@@ -397,7 +407,7 @@ esac
 
 set_num_headless_profiles
 
-if [[ "$install_other_mods" == "true" ]]; then
+if [[ -n "$mods_csv" ]]; then
     install_requested_mods
 fi
 
