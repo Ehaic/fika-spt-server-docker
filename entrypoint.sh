@@ -128,7 +128,7 @@ validate() {
     # If we have sptVersion in the core config, this means this existing server <= SPT v3
     # If existing SPT major version is less than 4, existing files are not compatible
     echo "Validating SPT version"
-    if [[ -d $nodejs_spt_data_dir && -f $spt_nodejs_core_config ]]; then
+    if [[ -d $spt_data_dir && -f $spt_nodejs_core_config ]]; then
         existing_spt_version=$(jq -r '.sptVersion' $spt_nodejs_core_config)
         if [[ $existing_spt_version != "null" && $existing_spt_version != "$spt_version" ]]; then
             echo "  ==================="
