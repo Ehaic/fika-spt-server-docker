@@ -16,11 +16,11 @@ spt_backup_dir=$backup_dir/spt/$(date +%Y%m%dT%H%M)
 force_spt_version=${FORCE_SPT_VERSION:=}
 forced_spt_version_archive=SPT-${force_spt_version}.7z
 
-# SPT 4.1+ directory structure:
-# - SPT_Runtime/ contains executables and SPT_Data (configs)
-# - SPT/ contains user data (profiles, mods)
+# SPT 4.1+ directory structure — everything lives under SPT_Runtime/:
+# executables, SPT_Data (configs), and user/ (profiles, mods)
+# The 4.1+ archive contains no SPT/ directory; it's a legacy artifact of older installs.
 spt_runtime_dir=$mounted_dir/SPT_Runtime
-spt_dir=$mounted_dir/SPT
+spt_dir=$spt_runtime_dir
 spt_data_dir=$spt_runtime_dir/SPT_Data
 spt_nodejs_core_config=$spt_data_dir/configs/core.json
 enable_spt_listen_on_all_networks=${LISTEN_ALL_NETWORKS:-false}
@@ -33,7 +33,6 @@ fika_config_path=assets/configs/fika.jsonc
 fika_mod_dir=$spt_dir/user/mods/fika-server
 fika_artifact=Fika.Server.Release.$fika_version.zip
 fika_release_url="https://github.com/project-fika/Fika-Server-CSharp/releases/download/v$fika_version/$fika_artifact"
-fika_remote_SHA=$(curl -s "https://api.github.com/repos/project-fika/Fika-Server-CSharp/git/refs/tags/v$fika_version" | grep -oP '"sha":\s*"\K[^"]+')
 
 auto_update_spt=${AUTO_UPDATE_SPT:-false}
 
@@ -129,9 +128,7 @@ validate() {
     # If existing SPT major version is less than 4, existing files are not compatible
     echo "Validating SPT version"
     if [[ -d $spt_data_dir && -f $spt_nodejs_core_config ]]; then
-        echo "DEBUG: core.json exists, running jq" >&2
         existing_spt_version=$(jq -r '.sptVersion' $spt_nodejs_core_config)
-        echo "DEBUG: existing_spt_version=$existing_spt_version" >&2
         if [[ $existing_spt_version != "null" && $existing_spt_version != "$spt_version" ]]; then
             echo "  ==================="
             echo "  === FATAL ERROR ==="
@@ -149,10 +146,8 @@ validate() {
     enforce_spt_4_structure
 
     if [[ -d $spt_data_dir ]]; then
-        echo "DEBUG: spt_data_dir exists, running exiftool" >&2
         # Grab version from binary using exiftool
         existing_spt_version=$(exiftool -s -s -s -ProductVersion $spt_runtime_dir/SPT.Server.dll | cut -d '-' -f 1)
-        echo "DEBUG: existing_spt_version from exiftool=$existing_spt_version" >&2
         if [[ -n ${force_spt_version} ]]; then
             # Force download SPT archive and install, do not backup or validate
             install_spt
@@ -160,30 +155,21 @@ validate() {
             try_update_spt $existing_spt_version
         fi
 
-        echo "DEBUG: SPT version check complete, moving to Fika validation" >&2
-        echo "DEBUG: fika_mode=$fika_mode" >&2
 
         # Validate fika version based on FIKA_MODE
-        # Since they (fika) don't use proper versioning, but they do include the release SHA in the DLL, we can use that to check if we need to update
-        # TODO: Add proper version check to validate if there is a new version available.
-            # This is essentially done by running a curl against fika github for all releases and checking for a later version than expected $fika_version
+        # Fika's ProductVersion metadata is a plain semver (e.g. "2.4.0"), so we
+        # compare it directly against FIKA_VERSION rather than extracting a SHA.
         case "$fika_mode" in
             custom)
-                echo "DEBUG: fika_mode=custom, skipping" >&2
                 echo "Skipping Fika validation (FIKA_MODE=custom)"
                 ;;
             install|auto-update)
-                echo "DEBUG: fika_mode=$fika_mode, checking Fika DLL" >&2
+                fika_local_version=""
                 if [[ -f $fika_mod_dir/FikaServer.dll ]]; then
-                    echo "DEBUG: FikaServer.dll found, running exiftool" >&2
-                    fika_local_SHA=$(exiftool -s -s -s -ProductVersion $fika_mod_dir/FikaServer.dll | grep -oP '[0-9.]+\+\K.*' || true)
-                    echo "DEBUG: fika_local_SHA=$fika_local_SHA" >&2
-                else
-                    echo "DEBUG: FikaServer.dll not found at $fika_mod_dir/FikaServer.dll" >&2
+                    fika_local_version=$(exiftool -s -s -s -ProductVersion $fika_mod_dir/FikaServer.dll || true)
                 fi
-                echo "DEBUG: fika_remote_SHA=$fika_remote_SHA" >&2
-                if [[ "$fika_local_SHA" != "$fika_remote_SHA" ]]; then
-                    echo "Fika SHA mismatch: found:$fika_local_SHA != expected:$fika_remote_SHA"
+                if [[ "$fika_local_version" != "$fika_version" ]]; then
+                    echo "Fika version mismatch: found:${fika_local_version:-none} != expected:$fika_version"
                     if [[ "$fika_mode" == "auto-update" ]]; then
                         echo "Auto-updating Fika version to $fika_version"
                         try_update_fika
@@ -385,7 +371,6 @@ install_requested_mods() {
 ##############
 
 validate
-echo "DEBUG: validate() completed, checking server binary" >&2
 
 # If no server binary in this directory, copy our built files in here and run it once
 if [[ ! -f "$spt_runtime_dir/$spt_binary" ]]; then

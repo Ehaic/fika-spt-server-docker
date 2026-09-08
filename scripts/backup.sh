@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 mounted_dir=/opt/server
-profiles_dir=$mounted_dir/user/profiles
+profiles_dir=$mounted_dir/SPT_Runtime/user/profiles
 timestamp=$(date +%Y%m%dT%H%M)
 backup_dir=$mounted_dir/backups/profiles/$timestamp
 
