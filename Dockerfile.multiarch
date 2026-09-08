@@ -3,7 +3,7 @@
 # - ARM64: Compiles from source (necessary for ARM support)
 
 # Stage 1: Download pre-compiled binaries for AMD64 OR build from source for ARM64
-FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS builder
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0-noble AS builder
 
 ARG SPT_VERSION=4.1.5-40743-7d7add5
 ARG TARGETARCH
