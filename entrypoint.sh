@@ -312,8 +312,8 @@ install_spt() {
         cd ${mounted_dir}
         # check if archive already exists, and extract if so
         if [[ ! -f ${forced_spt_version_archive} ]]; then
-            echo "Downloading https://mirror.sp-tushonka.com/releases/SPT-${force_spt_version}.7z"
-            curl -sL "https://mirror.sp-tushonka.com/releases/SPT-${force_spt_version}.7z" -o ${forced_spt_version_archive}
+            echo "Downloading https://mirror.sp-tushonka.com/builds/SPT-${force_spt_version}.7z"
+            curl -sL "https://mirror.sp-tushonka.com/builds/SPT-${force_spt_version}.7z" -o ${forced_spt_version_archive}
             # Remove the server files, since databases tend to be different between versions
             rm -rf $spt_data_dir
             7z x ${forced_spt_version_archive} -aoa

@@ -19,8 +19,9 @@ get_latest_spt_version() {
     fi
 
     # Extract the download URL from release notes
-    # Format: https://mirror.sp-tushonka.com/releases/SPT-4.1.3-40743-ddce41c.7z
-    local download_url=$(echo "$release_body" | grep -oP 'https://mirror\.sp-tushonka\.com/releases/SPT-[0-9.]+-[0-9]+-[a-f0-9]+\.7z' | head -n1)
+    # Match any path (releases/, builds/, etc.) so upstream path changes don't break this
+    # Example: https://mirror.sp-tushonka.com/builds/SPT-4.1.5-40743-7d7add5.7z
+    local download_url=$(echo "$release_body" | grep -oP 'https://[^\s"]+/SPT-[0-9.]+-[0-9]+-[a-f0-9]+\.7z' | head -n1)
 
     if [ -z "$download_url" ]; then
         echo "Error: Could not find download URL in release notes" >&2
@@ -30,9 +31,9 @@ get_latest_spt_version() {
     fi
 
     # Extract version string from URL
-    # From: https://mirror.sp-tushonka.com/releases/SPT-4.1.3-40743-ddce41c.7z
-    # To: 4.1.3-40743-ddce41c
-    local full_version=$(echo "$download_url" | sed -E 's|https://mirror\.sp-tushonka\.com/releases/SPT-||; s|\.7z$||')
+    # From: https://mirror.sp-tushonka.com/builds/SPT-4.1.5-40743-7d7add5.7z
+    # To: 4.1.5-40743-7d7add5
+    local full_version=$(echo "$download_url" | sed -E 's|.*/SPT-||; s|\.7z$||')
 
     if [ -z "$full_version" ]; then
         echo "Error: Could not parse version from URL: $download_url" >&2
@@ -62,7 +63,7 @@ get_version_from_release() {
     fi
 
     # Extract the download URL from release notes
-    local download_url=$(echo "$release_body" | grep -oP 'https://mirror\.sp-tushonka\.com/releases/SPT-[0-9.]+-[0-9]+-[a-f0-9]+\.7z' | head -n1)
+    local download_url=$(echo "$release_body" | grep -oP 'https://[^\s"]+/SPT-[0-9.]+-[0-9]+-[a-f0-9]+\.7z' | head -n1)
 
     if [ -z "$download_url" ]; then
         echo "Error: Could not find download URL in release notes for ${version_tag}" >&2
@@ -70,7 +71,7 @@ get_version_from_release() {
     fi
 
     # Extract version string from URL
-    local full_version=$(echo "$download_url" | sed -E 's|https://mirror\.sp-tushonka\.com/releases/SPT-||; s|\.7z$||')
+    local full_version=$(echo "$download_url" | sed -E 's|.*/SPT-||; s|\.7z$||')
 
     if [ -z "$full_version" ]; then
         echo "Error: Could not parse version from URL: $download_url" >&2
