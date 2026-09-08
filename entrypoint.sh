@@ -266,7 +266,7 @@ try_update_fika() {
     echo "Updating Fika servermod in place to $fika_version"
     # Backup entire fika servermod, then delete and update servermod
     backup_fika
-    rm -r $fika_mod_dir
+    rm -rf $fika_mod_dir
     install_fika_mod
     # restore config
     mkdir -p $fika_mod_dir/assets/configs
