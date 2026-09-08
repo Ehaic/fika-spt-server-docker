@@ -118,11 +118,17 @@ get_best_version() {
     fi
     
     # Filter by SPT version compatibility
-    # Supports: exact match, ~major.minor (patch-agnostic), >=version, ~major.minor <major.minor.patch
+    # Supports all constraint formats seen in the sp-mod.com registry:
+    #   exact:      4.1.3
+    #   tilde 2/3:  ~4.1, ~4.1.3  (same major.minor as the target, patch-agnostic)
+    #   minimum:    >=4.1.3
+    #   range:      >=4.1.3 <4.2.0 and ~4.0 <4.1.0 (space-separated, AND)
     local compatible_versions
     if [ -n "$SPT_VERSION" ]; then
         compatible_versions=$(echo "$versions" | jq -c --arg spt "$SPT_VERSION" '
-            def parse_version: split(".") | map(tonumber);
+            def parse_version:
+                (split(".") | map(tonumber)) as $p |
+                [($p[0] // 0), ($p[1] // 0), ($p[2] // 0)];
             def version_gte(a; b):
                 (a[0] > b[0]) or
                 (a[0] == b[0] and a[1] > b[1]) or
@@ -131,25 +137,39 @@ get_best_version() {
                 (a[0] < b[0]) or
                 (a[0] == b[0] and a[1] < b[1]) or
                 (a[0] == b[0] and a[1] == b[1] and a[2] < b[2]);
+            def satisfies($spt_ver; $constraint):
+                ($constraint | gsub("^\\s+|\\s+$"; "")) as $c |
+                if $c == "" then true
+                elif ($c | test("^~[0-9]+(\\.[0-9]+)*$")) then
+                    # ~X.Y / ~X.Y.Z: allow any patch within X.Y (Z ignored)
+                    ($c | ltrimstr("~") | split(".") | map(tonumber)) as $base |
+                    ($spt_ver[0] == $base[0] and $spt_ver[1] == $base[1])
+                elif ($c | test("^>=\\s*[0-9]")) then
+                    # >=X.Y.Z (2- or 3-part)
+                    ($c | ltrimstr(">=") | gsub("^\\s+|\\s+$"; "") | parse_version) as $min |
+                    version_gte($spt_ver; $min)
+                elif ($c | test("^<[0-9]")) then
+                    # <X.Y.Z (2- or 3-part)
+                    ($c | ltrimstr("<") | gsub("^\\s+|\\s+$"; "") | parse_version) as $max |
+                    version_lt($spt_ver; $max)
+                elif ($c | test("^=")) then
+                    # =X.Y.Z — same as exact
+                    $spt_ver == ($c | ltrimstr("=") | gsub("^\\s+|\\s+$"; "") | parse_version)
+                elif ($c | test("^[0-9]")) then
+                    # bare version = exact match
+                    $spt_ver == ($c | parse_version)
+                else
+                    # Unknown format: fail safe (reject) but this branch should not be hit
+                    false
+                end;
             def matches_constraint($spt):
                 .spt_version_constraint as $c |
-                ($c | gsub("^\\s+|\\s+$"; "")) as $trimmed |
                 if $c == null or $c == "" then true
-                elif $trimmed == $spt then true
-                elif ($trimmed | test("^~[0-9]+\\.[0-9]+$")) then
-                    $spt | startswith($trimmed | ltrimstr("~"))
-                elif ($trimmed | test("^>=[0-9]")) then
-                    ($spt | parse_version) as $current |
-                    ($trimmed | ltrimstr(">=") | parse_version) as $min |
-                    version_gte($current; $min)
-                elif ($trimmed | test("^~[0-9]+\\.[0-9]+\\s+<[0-9]")) then
-                    ($trimmed | capture("~(?<min>[0-9]+\\.[0-9]+)\\s+<(?<max>[0-9]+\\.[0-9]+\\.[0-9]+)")) as $m |
-                    ($spt | parse_version) as $current |
-                    ($m.min | split(".") | map(tonumber)) as $min_ver |
-                    ($m.max | split(".") | map(tonumber)) as $max_ver |
-                    ($current[0] == $min_ver[0] and $current[1] == $min_ver[1]) and
-                    version_lt($current; $max_ver)
-                else false
+                else
+                    ($spt | parse_version) as $spt_ver |
+                    ($c | gsub("^\\s+|\\s+$"; "") | gsub("\\s+"; " ") | split(" ")) as $parts |
+                    ($parts | map(satisfies($spt_ver; .))) as $checks |
+                    ($checks | all)
                 end;
             [.[] | select(matches_constraint($spt))]
         ')
