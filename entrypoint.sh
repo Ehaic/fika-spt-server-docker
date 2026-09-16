@@ -26,7 +26,7 @@ spt_nodejs_core_config=$spt_data_dir/configs/core.json
 enable_spt_listen_on_all_networks=${LISTEN_ALL_NETWORKS:-false}
 
 
-fika_version=${FIKA_VERSION:-2.4.0}
+fika_version=${FIKA_VERSION:-2.4.1}
 fika_mode=${FIKA_MODE:-disabled}
 fika_backup_dir=$backup_dir/fika/$(date +%Y%m%dT%H%M)
 fika_config_path=assets/configs/fika.jsonc
